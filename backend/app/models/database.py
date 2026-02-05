@@ -31,7 +31,8 @@ class LearningResource(Base):
     title = Column(String(255), nullable=False, index=True)
     # Changed from Enum to String to support dynamic categories
     category = Column(String(50), nullable=False)
-    media_type = Column(SQLEnum(MediaType), nullable=False)
+    # Use native_enum=False to avoid PostgreSQL permission/duplicate type errors
+    media_type = Column(SQLEnum(MediaType, native_enum=False), nullable=False)
     file_url = Column(String(500), nullable=False)
     size = Column(Integer, default=0)
     duration = Column(Integer, nullable=True) # Seconds
