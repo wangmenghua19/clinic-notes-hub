@@ -44,6 +44,12 @@ class ResourceResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
+    @model_validator(mode='after')
+    def transform_file_url(self):
+        if self.file_url and self.file_url.startswith("db://"):
+            self.file_url = f"/api/resources/{self.id}/content"
+        return self
+
     class Config:
         from_attributes = True
 

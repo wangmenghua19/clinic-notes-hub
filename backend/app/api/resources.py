@@ -79,12 +79,24 @@ async def create_resource(
 @router.get("/{resource_id}/content")
 async def get_resource_content(
     resource_id: int,
+    range: Optional[str] = Header(None),
     db: Session = Depends(get_db)
 ):
     resource = db.query(LearningResource).filter(LearningResource.id == resource_id).first()
     if not resource:
         raise HTTPException(status_code=404, detail="Resource not found")
     
+    # Determine Content-Type
+    content_type = "application/octet-stream"
+    if resource.media_type == MediaType.IMAGE:
+        content_type = "image/jpeg"
+    elif resource.media_type == MediaType.VIDEO:
+        content_type = "video/mp4"
+    elif resource.media_type == MediaType.AUDIO:
+        content_type = "audio/mpeg"
+    elif resource.media_type == MediaType.DOC:
+        content_type = "application/pdf"
+
     if not resource.content:
         # Fallback for old files on disk?
         # If file_url starts with /uploads, try to read from disk
@@ -95,14 +107,45 @@ async def get_resource_content(
                  def iterfile():
                      with open(file_path, mode="rb") as file_like:
                          yield from file_like
-                 return StreamingResponse(iterfile())
+                 return StreamingResponse(iterfile(), media_type=content_type)
         
         raise HTTPException(status_code=404, detail="File content not found in DB")
     
-    # Serve from DB content
-    return StreamingResponse(
-        io.BytesIO(resource.content), 
-        media_type="application/octet-stream" # Or guess mime type based on media_type enum
+    # Serve from DB content with Range support
+    file_size = len(resource.content)
+    
+    if range:
+        try:
+            start_str, end_str = range.replace("bytes=", "").split("-")
+            start = int(start_str)
+            end = int(end_str) if end_str else file_size - 1
+            
+            if start >= file_size:
+                 return Response(status_code=416) # Range Not Satisfiable
+                 
+            chunk_size = end - start + 1
+            # Slice the bytes
+            data = resource.content[start:end+1]
+            
+            headers = {
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+            }
+            
+            return Response(
+                content=data,
+                status_code=206,
+                headers=headers,
+                media_type=content_type
+            )
+        except ValueError:
+            pass # Fallback to full content if range parsing fails
+
+    return Response(
+        content=resource.content, 
+        media_type=content_type,
+        headers={"Accept-Ranges": "bytes"}
     )
 
 @router.get("", response_model=List[ResourceResponse])
