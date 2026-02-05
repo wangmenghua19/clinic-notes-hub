@@ -39,4 +39,22 @@ def get_db():
 
 def init_db():
     from app.models.database import Base
-    Base.metadata.create_all(bind=engine)
+    import time
+    
+    max_retries = 10
+    retry_interval = 3
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"Connecting to database (Attempt {attempt + 1}/{max_retries})...")
+            Base.metadata.create_all(bind=engine)
+            print("Database initialized successfully.")
+            return
+        except Exception as e:
+            print(f"Database connection failed: {e}")
+            if attempt < max_retries - 1:
+                print(f"Retrying in {retry_interval} seconds...")
+                time.sleep(retry_interval)
+            else:
+                print("Max retries reached. Raising exception.")
+                raise e
