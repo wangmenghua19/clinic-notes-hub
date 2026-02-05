@@ -3,7 +3,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.core.config import init_db
+from app.core.config import init_db, engine
+from app.core.migration import check_and_migrate_tables
 from app.api.resources import router as resources_router
 from app.api.shares import router as shares_router
 from app.api.categories import router as categories_router
@@ -11,6 +12,10 @@ from app.api.categories import router as categories_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    try:
+        check_and_migrate_tables(engine)
+    except Exception as e:
+        print(f"Migration warning: {e}")
     yield
 
 app = FastAPI(

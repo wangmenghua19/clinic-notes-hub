@@ -24,7 +24,8 @@ async def create_category(
 ):
     existing = db.query(Category).filter(Category.name == category.name).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Category already exists")
+        # If category exists, return it instead of error (Idempotency)
+        return existing
     
     new_category = Category(
         name=category.name,
