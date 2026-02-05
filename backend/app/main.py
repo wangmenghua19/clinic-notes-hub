@@ -33,9 +33,16 @@ import os
 # Use absolute path to ensure we create/mount the correct directory regardless of CWD
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-os.makedirs(UPLOADS_DIR, exist_ok=True)
-print(f"Mounting uploads directory at: {UPLOADS_DIR}")
-app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+try:
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+except Exception as e:
+    print(f"Warning: Could not create uploads directory: {e}")
+
+if os.path.exists(UPLOADS_DIR):
+    print(f"Mounting uploads directory at: {UPLOADS_DIR}")
+    app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
+else:
+    print(f"Warning: Uploads directory {UPLOADS_DIR} does not exist, skipping mount.")
 
 app.include_router(resources_router)
 app.include_router(shares_router)
