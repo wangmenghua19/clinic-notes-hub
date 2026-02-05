@@ -64,55 +64,60 @@
    };
  
    return (
-     <Dialog open={open} onOpenChange={handleClose}>
-       <DialogContent className="sm:max-w-md">
-         <DialogHeader>
-           <DialogTitle className="text-xl flex items-center gap-2">
-             <Link2 className="h-5 w-5" />
-             分享资料
-           </DialogTitle>
-           {file && (
-             <DialogDescription className="text-sm truncate">
-               {file.name}
-             </DialogDescription>
-           )}
-         </DialogHeader>
- 
-         <div className="space-y-6 pt-4">
-           {!shareLink ? (
-             <>
-               {/* Expiry Type Selection */}
-               <div>
-                 <label className="text-sm font-medium mb-3 block">
-                   有效期设置
-                 </label>
-                 <div className="grid grid-cols-2 gap-3">
-                   <Button
-                     type="button"
-                     variant={expiryType === 'burn' ? 'default' : 'outline'}
-                     className={cn(
-                       'h-20 flex-col gap-2 touch-target',
-                       expiryType === 'burn' && 'ring-2 ring-primary ring-offset-2'
-                     )}
-                     onClick={() => setExpiryType('burn')}
-                   >
-                     <Flame className="h-6 w-6" />
-                     <span>阅后即焚</span>
-                   </Button>
-                   <Button
-                     type="button"
-                     variant={expiryType === '24h' ? 'default' : 'outline'}
-                     className={cn(
-                       'h-20 flex-col gap-2 touch-target',
-                       expiryType === '24h' && 'ring-2 ring-primary ring-offset-2'
-                     )}
-                     onClick={() => setExpiryType('24h')}
-                   >
-                     <Clock className="h-6 w-6" />
-                     <span>24小时有效</span>
-                   </Button>
-                 </div>
-               </div>
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl flex items-center gap-2">
+            <Link2 className="h-5 w-5" />
+            分享资料
+          </DialogTitle>
+          {file && (
+            <DialogDescription className="text-sm truncate">
+              {file.name}
+            </DialogDescription>
+          )}
+        </DialogHeader>
+
+        <div className="space-y-6 pt-4">
+          {!shareLink ? (
+            <>
+              {/* Disclaimer Preview */}
+              <div className="bg-amber-50 p-4 rounded-lg border border-amber-200/60 text-amber-800 text-sm">
+                 <p className="font-medium flex items-center gap-2 mb-1">
+                   <span className="bg-amber-100 p-1 rounded">⚠️ 学术交流专用模式</span>
+                 </p>
+                 <p className="opacity-90">
+                   生成的链接在访问时将<strong>强制全屏显示免责声明</strong>，访问者需确认“严禁外传”后方可查看内容。
+                 </p>
+              </div>
+
+              {/* Expiry Type Selection */}
+              <div>
+                <label className="text-sm font-medium mb-3 block">
+                  有效期设置
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    variant={expiryType === '24h' ? 'default' : 'outline'}
+                    className={cn("h-auto py-3 flex flex-col gap-1", expiryType === '24h' && "border-primary")}
+                    onClick={() => setExpiryType('24h')}
+                  >
+                    <Clock className="h-5 w-5 mb-1" />
+                    <span className="font-semibold">24小时有效</span>
+                    <span className="text-[10px] opacity-80 font-normal">适合临时分享</span>
+                  </Button>
+
+                  <Button
+                    variant={expiryType === 'long-term' ? 'default' : 'outline'}
+                    className={cn("h-auto py-3 flex flex-col gap-1", expiryType === 'long-term' && "border-primary")}
+                    onClick={() => setExpiryType('long-term')}
+                  >
+                    <Flame className="h-5 w-5 mb-1" />
+                    <span className="font-semibold">长期有效</span>
+                    <span className="text-[10px] opacity-80 font-normal">适合永久归档</span>
+                  </Button>
+                </div>
+              </div>
  
                <Button
                  className="w-full h-12 touch-target text-base"

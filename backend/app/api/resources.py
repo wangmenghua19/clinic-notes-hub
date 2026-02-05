@@ -1,0 +1,262 @@
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from typing import Optional, List
+from datetime import datetime, timedelta
+import secrets
+import os
+import io
+
+from app.core.config import get_db
+from app.core.privacy import PrivacyDetector
+from app.models.database import LearningResource, MediaType
+from app.schemas.schemas import (
+    ResourceCreate,
+    ResourceUpdate,
+    ResourceResponse,
+    ShareLinkCreate,
+    ShareLinkResponse,
+    PrivacyAlert,
+)
+
+router = APIRouter(prefix="/api/resources", tags=["resources"])
+
+# UPLOAD_DIR = "uploads"
+# os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@router.post("", response_model=ResourceResponse)
+async def create_resource(
+    title: str = Form(...),
+    category: str = Form(...),
+    media_type: MediaType = Form(...),
+    key_points: Optional[str] = Form(None),
+    patient_anonymized: bool = Form(False),
+    transcript: Optional[str] = Form(""),
+    duration: Optional[int] = Form(None),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    print(f"Received upload request: title={title}, category={category}, media_type={media_type}")
+    risk_level, alerts = PrivacyDetector.check_title(title)
+    
+    if risk_level == PrivacyDetector.RISK_HIGH:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "检测到可能的患者隐私信息，请检查并脱敏后再上传",
+                "alerts": alerts,
+                "suggestion": PrivacyDetector.suggest_anonymized_title(title)
+            }
+        )
+
+    # Read file content into memory
+    file_content = await file.read()
+    file_size = len(file_content)
+    
+    print(f"DEBUG: Saving file to DB with pseudo-path")
+    # Store pseudo-path or empty for compatibility
+    file_path = f"db://{secrets.token_hex(8)}_{file.filename}"
+
+    resource = LearningResource(
+        title=title,
+        category=category,
+        media_type=media_type,
+        file_url=file_path,
+        size=file_size,
+        duration=duration,
+        key_points=key_points,
+        patient_anonymized=patient_anonymized,
+        transcript=transcript or "",
+        content=file_content # Save to DB
+    )
+    
+    db.add(resource)
+    db.commit()
+    db.refresh(resource)
+    
+    return resource
+
+@router.get("/{resource_id}/content")
+async def get_resource_content(
+    resource_id: int,
+    db: Session = Depends(get_db)
+):
+    resource = db.query(LearningResource).filter(LearningResource.id == resource_id).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="Resource not found")
+    
+    if not resource.content:
+        # Fallback for old files on disk?
+        # If file_url starts with /uploads, try to read from disk
+        if resource.file_url and not resource.file_url.startswith("db://"):
+             # It's a legacy file path
+             file_path = os.path.join("backend", resource.file_url.lstrip("/"))
+             if os.path.exists(file_path):
+                 def iterfile():
+                     with open(file_path, mode="rb") as file_like:
+                         yield from file_like
+                 return StreamingResponse(iterfile())
+        
+        raise HTTPException(status_code=404, detail="File content not found in DB")
+    
+    # Serve from DB content
+    return StreamingResponse(
+        io.BytesIO(resource.content), 
+        media_type="application/octet-stream" # Or guess mime type based on media_type enum
+    )
+
+@router.get("", response_model=List[ResourceResponse])
+async def get_resources(
+    category: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    timeline_mode: bool = False,
+    db: Session = Depends(get_db)
+):
+    query = db.query(LearningResource)
+    
+    if category:
+        query = query.filter(LearningResource.category == category)
+    
+    if start_date:
+        query = query.filter(LearningResource.created_at >= start_date)
+    
+    if end_date:
+        query = query.filter(LearningResource.created_at <= end_date)
+    
+    resources = query.order_by(LearningResource.created_at.desc()).all()
+    
+    return resources
+
+@router.get("/timeline")
+async def get_timeline(
+    year: Optional[int] = None,
+    month: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import func, extract
+    
+    query = db.query(
+        func.date_format(LearningResource.created_at, '%Y-%m-%d').label('date'),
+        func.count().label('count')
+    ).group_by(
+        func.date_format(LearningResource.created_at, '%Y-%m-%d')
+    ).order_by('date')
+    
+    if year:
+        query = query.filter(extract('year', LearningResource.created_at) == year)
+    if month:
+        query = query.filter(extract('month', LearningResource.created_at) == month)
+    
+    timeline = query.all()
+    
+    return [{"date": row.date, "count": row.count} for row in timeline]
+
+@router.get("/timeline/{date}")
+async def get_resources_by_date(
+    date: str,
+    db: Session = Depends(get_db)
+):
+    from sqlalchemy import func
+    
+    target_date = datetime.strptime(date, '%Y-%m-%d')
+    next_date = target_date + timedelta(days=1)
+    
+    resources = db.query(LearningResource).filter(
+        LearningResource.created_at >= target_date,
+        LearningResource.created_at < next_date
+    ).order_by(LearningResource.created_at.desc()).all()
+    
+    return resources
+
+@router.get("/{resource_id}", response_model=ResourceResponse)
+async def get_resource(
+    resource_id: int,
+    db: Session = Depends(get_db)
+):
+    resource = db.query(LearningResource).filter(LearningResource.id == resource_id).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="资源不存在")
+    return resource
+
+@router.put("/{resource_id}", response_model=ResourceResponse)
+async def update_resource(
+    resource_id: int,
+    update_data: ResourceUpdate,
+    db: Session = Depends(get_db)
+):
+    resource = db.query(LearningResource).filter(LearningResource.id == resource_id).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="资源不存在")
+    
+    if update_data.title:
+        risk_level, alerts = PrivacyDetector.check_title(update_data.title)
+        if risk_level == PrivacyDetector.RISK_HIGH:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": "检测到可能的患者隐私信息",
+                    "alerts": alerts,
+                    "suggestion": PrivacyDetector.suggest_anonymized_title(update_data.title)
+                }
+            )
+        
+        resource.title = update_data.title
+    
+    if update_data.category:
+        resource.category = update_data.category
+    
+    if update_data.key_points is not None:
+        resource.key_points = update_data.key_points
+    
+    if update_data.patient_anonymized is not None:
+        resource.patient_anonymized = update_data.patient_anonymized
+    
+    if update_data.transcript is not None:
+        resource.transcript = update_data.transcript
+    
+    db.commit()
+    db.refresh(resource)
+    
+    return resource
+
+@router.delete("/{resource_id}")
+async def delete_resource(
+    resource_id: int,
+    db: Session = Depends(get_db)
+):
+    resource = db.query(LearningResource).filter(LearningResource.id == resource_id).first()
+    if not resource:
+        raise HTTPException(status_code=404, detail="资源不存在")
+    
+    db.delete(resource)
+    db.commit()
+    
+    return {"message": "删除成功"}
+
+@router.post("/check-privacy")
+async def check_privacy(
+    title: str,
+    content: Optional[str] = None
+) -> PrivacyAlert:
+    title_risk, title_alerts = PrivacyDetector.check_title(title)
+    
+    content_risk = PrivacyDetector.RISK_LOW
+    content_alerts = []
+    if content:
+        content_risk, content_alerts = PrivacyDetector.check_content(content)
+    
+    all_alerts = title_alerts + content_alerts
+    
+    if title_risk == PrivacyDetector.RISK_HIGH or content_risk == PrivacyDetector.RISK_HIGH:
+        risk_level = "high"
+    elif title_risk == PrivacyDetector.RISK_MEDIUM or content_risk == PrivacyDetector.RISK_MEDIUM:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+    
+    return PrivacyAlert(
+        contains_patient_name=risk_level != PrivacyDetector.RISK_LOW,
+        alert_message="请检查以下隐私风险" if all_alerts else "未检测到明显隐私风险",
+        suggestions=all_alerts
+    )

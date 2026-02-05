@@ -22,3 +22,24 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database
+medstudy.db
+medstudy.db-shm
+medstudy.db-wal
+
+# Uploads (local dev only, prod uses DB or S3)
+uploads/
+
+# Environment variables
+.env
+backend/.env
+
+# Python
+backend/__pycache__/
+backend/venv/
+backend/.venv/
+*.pyc
+
+# OS
+Thumbs.db

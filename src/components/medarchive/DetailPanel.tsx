@@ -99,32 +99,45 @@
              )}
              
              {file.type === 'audio' && (
-               <div className="p-6">
-                 <div className="flex items-center gap-4">
-                   <Button
-                     size="icon"
-                     variant="default"
-                     className="h-12 w-12 rounded-full"
-                     onClick={togglePlay}
-                   >
-                     {isPlaying ? (
-                       <Pause className="h-5 w-5" />
-                     ) : (
-                       <Play className="h-5 w-5 ml-0.5" />
-                     )}
-                   </Button>
-                   <div className="flex-1">
-                     <Progress value={audioProgress} className="h-2" />
-                     <div className="flex justify-between mt-2 text-sm text-muted-foreground">
-                       <span>{formatDuration(Math.floor((audioProgress / 100) * (file.duration || 0)))}</span>
-                       <span>{file.duration ? formatDuration(file.duration) : '--:--'}</span>
-                     </div>
-                   </div>
-                 </div>
-               </div>
-             )}
-             
-             {file.type === 'document' && (
+              <div className="p-6">
+                <div className="flex items-center gap-4">
+                  <Button
+                    size="icon"
+                    variant="default"
+                    className="h-12 w-12 rounded-full"
+                    onClick={togglePlay}
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-5 w-5" />
+                    ) : (
+                      <Play className="h-5 w-5 ml-0.5" />
+                    )}
+                  </Button>
+                  <div className="flex-1">
+                    <Progress value={audioProgress} className="h-2" />
+                    <div className="flex justify-between mt-2 text-sm text-muted-foreground">
+                      <span>{formatDuration(Math.floor((audioProgress / 100) * (file.duration || 0)))}</span>
+                      <span>{file.duration ? formatDuration(file.duration) : '--:--'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {file.type === 'video' && (
+              <div className="w-full aspect-video bg-black flex items-center justify-center">
+                 <video 
+                   src={file.fileUrl} 
+                   controls 
+                   className="w-full h-full"
+                   controlsList="nodownload"
+                 >
+                   您的浏览器不支持视频播放。
+                 </video>
+              </div>
+            )}
+            
+            {file.type === 'document' && (
                <div className="p-8 flex items-center justify-center">
                  <div className="text-center">
                    <FileText className="h-16 w-16 mx-auto text-destructive/60" />

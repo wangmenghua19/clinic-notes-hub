@@ -1,25 +1,11 @@
  // MedArchive Types
  
- export type FileType = 'image' | 'audio' | 'document';
- 
- export type DiseaseTag = 
-   | '正畸'
-   | '植牙'
-   | '根管治疗'
-   | '牙周病'
-   | '儿童齿科'
-   | '美白'
-   | '修复'
-   | '其他';
- 
-export type ResearchGroup = 
-  | '口腔正畸科'
-  | '口腔种植科'
-  | '牙体牙髓科'
-  | '牙周病科'
-  | '儿童口腔科'
-  | '口腔修复科'
-  | '口腔颌面外科';
+ export type FileType = 'image' | 'audio' | 'video' | 'document';
+
+// Allow any string for dynamic categories
+export type DiseaseTag = string;
+
+export type ResearchGroup = string;
 
 export interface CategoryNode {
   id: string;
@@ -46,7 +32,7 @@ export interface CategoryNode {
  export interface ShareLink {
    id: string;
    fileId: string;
-   expiryType: 'burn' | '24h';
+   expiryType: 'long-term' | '24h';
    createdAt: Date;
    expiresAt?: Date;
    accessCount: number;
