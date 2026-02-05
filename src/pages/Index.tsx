@@ -2,28 +2,39 @@ import { useState, useEffect } from 'react';
 import { MedFile, DiseaseTag } from '@/types/medarchive';
 import { fileService } from '@/services/api';
 import { Header } from '@/components/medarchive/Header';
-import { SearchBar } from '@/components/medarchive/SearchBar';
-import { TagFilter } from '@/components/medarchive/TagFilter';
-import { FileCard } from '@/components/medarchive/FileCard';
+import { CategoryTree } from '@/components/medarchive/CategoryTree';
+import { FileGrid } from '@/components/medarchive/FileGrid';
+import { DetailPanel } from '@/components/medarchive/DetailPanel';
 import { UploadDialog } from '@/components/medarchive/UploadDialog';
 import { ShareDialog } from '@/components/medarchive/ShareDialog';
-import { EmptyState } from '@/components/medarchive/EmptyState';
+import { cn } from '@/lib/utils';
 
 const Index = () => {
   const [files, setFiles] = useState<MedFile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTag, setSelectedTag] = useState<DiseaseTag | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>('all');
   const [isLoading, setIsLoading] = useState(true);
   
   // Dialog states
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareFile, setShareFile] = useState<MedFile | null>(null);
+  
+  // Panel states
   const [selectedFile, setSelectedFile] = useState<MedFile | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'group' | 'tag'>('all');
+  const [filterValue, setFilterValue] = useState<string | undefined>(undefined);
 
   const loadFiles = async () => {
     setIsLoading(true);
     try {
-      const data = await fileService.getFiles(searchQuery, selectedTag || undefined);
+      // Filter based on category selection
+      let tagFilter: DiseaseTag | undefined;
+      if (filterType === 'tag' && filterValue) {
+        tagFilter = filterValue as DiseaseTag;
+      }
+      const data = await fileService.getFiles(searchQuery, tagFilter);
       setFiles(data);
     } catch (error) {
       console.error('Failed to load files:', error);
@@ -34,62 +45,103 @@ const Index = () => {
 
   useEffect(() => {
     loadFiles();
-  }, [searchQuery, selectedTag]);
+  }, [searchQuery, filterType, filterValue]);
+
+  const handleCategorySelect = (category: string | null, type: 'all' | 'group' | 'tag', value?: string) => {
+    setSelectedCategory(category);
+    setFilterType(type);
+    setFilterValue(value);
+    // Close sidebar on mobile after selection
+    setSidebarOpen(false);
+  };
+
+  const handleFileSelect = (file: MedFile) => {
+    setSelectedFile(file);
+  };
 
   const handleShare = (file: MedFile) => {
-    setSelectedFile(file);
+    setShareFile(file);
     setShareDialogOpen(true);
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header onUploadClick={() => setUploadDialogOpen(true)} />
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      <Header 
+        onUploadClick={() => setUploadDialogOpen(true)}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
       
-      <main className="container max-w-7xl mx-auto px-4 py-6">
-        {/* Search Section */}
-        <div className="space-y-4 mb-8">
-          <SearchBar 
-            value={searchQuery} 
-            onChange={setSearchQuery} 
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Category Tree */}
+        <aside 
+          className={cn(
+            'w-64 border-r bg-card flex-shrink-0 transition-transform duration-200',
+            'fixed lg:relative inset-y-0 left-0 z-40 lg:z-0 pt-16 lg:pt-0',
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          )}
+        >
+          <CategoryTree 
+            selectedCategory={selectedCategory}
+            onCategorySelect={handleCategorySelect}
           />
-          <TagFilter 
-            selectedTag={selectedTag} 
-            onTagSelect={setSelectedTag} 
-          />
-        </div>
+        </aside>
 
-        {/* File Grid */}
-        {isLoading ? (
-          <div className="masonry-grid">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="masonry-item">
-                <div className="bg-card rounded-lg shadow-card overflow-hidden animate-pulse">
-                  <div className="h-40 bg-muted" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-4 bg-muted rounded w-3/4" />
-                    <div className="h-3 bg-muted rounded w-1/2" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : files.length > 0 ? (
-          <div className="masonry-grid">
-            {files.map((file) => (
-              <FileCard 
-                key={file.id} 
-                file={file} 
-                onShare={handleShare}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyState 
-            isSearching={!!searchQuery || !!selectedTag} 
-            onUploadClick={() => setUploadDialogOpen(true)}
+        {/* Mobile Overlay */}
+        {sidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
           />
         )}
-      </main>
+
+        {/* Center - File Grid */}
+        <main className="flex-1 overflow-auto p-4 lg:p-6">
+          <FileGrid
+            files={files}
+            isLoading={isLoading}
+            isSearching={!!searchQuery || filterType !== 'all'}
+            selectedFileId={selectedFile?.id || null}
+            onFileSelect={handleFileSelect}
+            onShare={handleShare}
+            onUploadClick={() => setUploadDialogOpen(true)}
+          />
+        </main>
+
+        {/* Right Panel - Detail View */}
+        <aside 
+          className={cn(
+            'w-80 border-l bg-card flex-shrink-0 transition-all duration-200 overflow-hidden',
+            'hidden xl:block',
+            selectedFile ? 'xl:w-80' : 'xl:w-0 xl:border-l-0'
+          )}
+        >
+          <DetailPanel 
+            file={selectedFile}
+            onClose={() => setSelectedFile(null)}
+            onShare={handleShare}
+          />
+        </aside>
+      </div>
+
+      {/* Mobile Detail Panel - Modal */}
+      {selectedFile && (
+        <div className="xl:hidden fixed inset-0 z-50">
+          <div 
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+            onClick={() => setSelectedFile(null)}
+          />
+          <div className="absolute right-0 top-0 bottom-0 w-full sm:w-96 bg-card shadow-modal">
+            <DetailPanel 
+              file={selectedFile}
+              onClose={() => setSelectedFile(null)}
+              onShare={handleShare}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Dialogs */}
       <UploadDialog
@@ -99,7 +151,7 @@ const Index = () => {
       />
       
       <ShareDialog
-        file={selectedFile}
+        file={shareFile}
         open={shareDialogOpen}
         onOpenChange={setShareDialogOpen}
       />
@@ -107,7 +159,7 @@ const Index = () => {
       {/* Floating Upload Button (Mobile) */}
       <button
         onClick={() => setUploadDialogOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-elevated flex items-center justify-center sm:hidden touch-target active:scale-95 transition-transform"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-elevated flex items-center justify-center lg:hidden touch-target active:scale-95 transition-transform z-20"
         aria-label="上传资料"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -8,10 +8,12 @@
  
  interface FileCardProps {
    file: MedFile;
+  isSelected?: boolean;
+  onSelect?: () => void;
    onShare: (file: MedFile) => void;
  }
  
- export function FileCard({ file, onShare }: FileCardProps) {
+export function FileCard({ file, isSelected, onSelect, onShare }: FileCardProps) {
    const [isPlaying, setIsPlaying] = useState(false);
    const [audioProgress, setAudioProgress] = useState(0);
  
@@ -33,7 +35,8 @@
      }).format(date);
    };
  
-   const togglePlay = () => {
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
      setIsPlaying(!isPlaying);
      // Simulate audio playback progress
      if (!isPlaying) {
@@ -52,7 +55,13 @@
  
    return (
      <div className="masonry-item">
-       <div className="group bg-card rounded-lg shadow-card overflow-hidden hover:shadow-elevated transition-shadow duration-200">
+      <div 
+        onClick={onSelect}
+        className={cn(
+          'group bg-card rounded-lg shadow-card overflow-hidden hover:shadow-elevated transition-all duration-200 cursor-pointer',
+          isSelected && 'ring-2 ring-primary shadow-elevated'
+        )}
+      >
          {/* Preview Area */}
          <div className="relative watermark">
            {file.type === 'image' && file.thumbnailUrl && (
@@ -104,7 +113,10 @@
              size="icon"
              variant="secondary"
              className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity h-10 w-10 shadow-elevated"
-             onClick={() => onShare(file)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare(file);
+            }}
            >
              <Share2 className="h-4 w-4" />
            </Button>
