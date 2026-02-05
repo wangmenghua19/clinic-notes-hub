@@ -28,6 +28,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Ensure uploads directory exists to prevent StaticFiles error
+import os
+os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(resources_router)
