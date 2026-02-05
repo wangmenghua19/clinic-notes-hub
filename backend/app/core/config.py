@@ -8,6 +8,10 @@ DATABASE_URL = os.getenv(
     "sqlite:///./medstudy.db"
 )
 
+# Fix Render's postgres:// URL for SQLAlchemy
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
