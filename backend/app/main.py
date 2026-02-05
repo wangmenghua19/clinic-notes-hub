@@ -30,8 +30,12 @@ app.add_middleware(
 
 # Ensure uploads directory exists to prevent StaticFiles error
 import os
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Use absolute path to ensure we create/mount the correct directory regardless of CWD
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+print(f"Mounting uploads directory at: {UPLOADS_DIR}")
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 app.include_router(resources_router)
 app.include_router(shares_router)
