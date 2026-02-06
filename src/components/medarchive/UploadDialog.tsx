@@ -191,7 +191,6 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
     setStartTs(Date.now());
     try {
       const compressServer = compressEnabled && fileType === 'video' && fileToUpload === file;
-      const compressServer = compressEnabled && fileType === 'video' && fileToUpload === file;
       const { xhr, promise } = fileService.createUploadWithProgress(
         fileToUpload,
         fileType!,
@@ -220,7 +219,6 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
         setIsUploading(false);
         setCurrentXhr(null);
         onUploadComplete();
-        setSelectOpen(false);
         setTimeout(() => {
           handleClose();
         }, 0);
@@ -293,7 +291,6 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
     setFileType(null);
     setTitle('');
     setDiseaseTag('');
-    setSelectOpen(false);
     setTimeout(() => {
       onOpenChange(false);
     }, 0);
