@@ -62,11 +62,24 @@ async def get_shared_resource(
     if not resource:
         raise HTTPException(status_code=404, detail="资源不存在")
     
-    share_link.access_count += 1
-    db.commit()
+    try:
+        share_link.access_count += 1
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating access count: {e}")
+        # Continue even if counting fails, or log it. 
+        # But for now let's just log and continue to allow access.
     
+    try:
+        resource_data = ResourceResponse.model_validate(resource)
+    except Exception as e:
+        print(f"Error validating resource data: {e}")
+        # Log the detailed error for debugging
+        raise HTTPException(status_code=500, detail=f"Internal Data Error: {str(e)}")
+
     return {
-        "resource": ResourceResponse.model_validate(resource),
+        "resource": resource_data,
         "disclaimer": "此资料仅供学术探讨，严禁外传",
         "share_info": {
             "expires_at": share_link.expires_at,
