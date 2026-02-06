@@ -257,7 +257,7 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : handleClose())}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>上传资料</DialogTitle>
@@ -382,7 +382,7 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
                   <SelectTrigger>
                     <SelectValue placeholder="选择所属目录..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper">
                     {categories.map((category) => (
                       <SelectItem key={category.id} value={category.name}>
                         {category.name}
