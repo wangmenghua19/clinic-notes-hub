@@ -54,6 +54,7 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
   const [ffmpegReady, setFfmpegReady] = useState(false);
   const [ffmpeg, setFfmpeg] = useState<any>(null);
   const [ffFetchFile, setFfFetchFile] = useState<any>(null);
+  const [selectOpen, setSelectOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -224,7 +225,10 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
       setIsUploading(false);
       setCurrentXhr(null);
       onUploadComplete();
-      handleClose();
+      setSelectOpen(false);
+      setTimeout(() => {
+        handleClose();
+      }, 0);
     } catch (error: any) {
       setIsUploading(false);
       setCurrentXhr(null);
@@ -253,7 +257,10 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
     setFileType(null);
     setTitle('');
     setDiseaseTag('');
-    onOpenChange(false);
+    setSelectOpen(false);
+    setTimeout(() => {
+      onOpenChange(false);
+    }, 0);
   };
 
   return (
@@ -378,7 +385,7 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
 
               <div className="space-y-2">
                 <Label>选择目录</Label>
-                <Select value={diseaseTag} onValueChange={setDiseaseTag}>
+                <Select value={diseaseTag} onValueChange={setDiseaseTag} open={selectOpen} onOpenChange={setSelectOpen}>
                   <SelectTrigger>
                     <SelectValue placeholder="选择所属目录..." />
                   </SelectTrigger>
