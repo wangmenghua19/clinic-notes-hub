@@ -177,13 +177,16 @@ async def get_timeline(
     month: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
-    from sqlalchemy import func, extract
+    from sqlalchemy import func, extract, cast, Date
+    
+    # Use cast to Date for cross-database compatibility (SQLite/PostgreSQL)
+    date_col = cast(LearningResource.created_at, Date)
     
     query = db.query(
-        func.date_format(LearningResource.created_at, '%Y-%m-%d').label('date'),
+        date_col.label('date'),
         func.count().label('count')
     ).group_by(
-        func.date_format(LearningResource.created_at, '%Y-%m-%d')
+        date_col
     ).order_by('date')
     
     if year:

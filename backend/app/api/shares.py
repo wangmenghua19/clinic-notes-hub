@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 
 from app.core.config import get_db
@@ -20,7 +20,8 @@ async def create_share_link(
         raise HTTPException(status_code=404, detail="资源不存在")
     
     share_token = secrets.token_urlsafe(16)
-    expires_at = datetime.utcnow() + timedelta(hours=share_data.expiry_hours)
+    # Use timezone-aware UTC time
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=share_data.expiry_hours)
     
     share_link = ShareLink(
         resource_id=share_data.resource_id,
@@ -46,7 +47,15 @@ async def get_shared_resource(
     if not share_link:
         raise HTTPException(status_code=404, detail="分享链接不存在或已失效")
     
-    if datetime.utcnow() > share_link.expires_at:
+    # Handle timezone comparison safely
+    now = datetime.now(timezone.utc)
+    expires_at = share_link.expires_at
+    
+    # Ensure expires_at is timezone-aware
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    
+    if now > expires_at:
         raise HTTPException(status_code=410, detail="分享链接已过期")
     
     resource = db.query(LearningResource).filter(LearningResource.id == share_link.resource_id).first()
