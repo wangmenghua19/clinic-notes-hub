@@ -34,7 +34,7 @@ async def create_resource(
     transcript: Optional[str] = Form(""),
     duration: Optional[int] = Form(None),
     file: UploadFile = File(...),
-    compress: Optional[bool] = Form(False),
+    compress: Optional[str] = Form("false"),
     db: Session = Depends(get_db)
 ):
     print(f"Received upload request: title={title}, category={category}, media_type={media_type}")
@@ -59,7 +59,13 @@ async def create_resource(
     file_path = f"db://{secrets.token_hex(8)}_{file.filename}"
 
     # Optional server-side compression for video
-    if compress and media_type == MediaType.VIDEO:
+    def _to_bool(val: Optional[str]) -> bool:
+        if val is None:
+            return False
+        return str(val).strip().lower() in {"true", "1", "on", "yes"}
+    compress_flag = _to_bool(compress)
+
+    if compress_flag and media_type == MediaType.VIDEO:
         try:
             import shutil, tempfile, subprocess
             if shutil.which("ffmpeg") is None:
