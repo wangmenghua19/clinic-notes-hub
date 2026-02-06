@@ -191,11 +191,12 @@ export const fileService = {
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded, e.total);
     };
-    xhr.onerror = () => {
-      const msg = '网络错误，上传失败';
-      onError?.(msg);
-    };
     const promise = new Promise<MedFile>((resolve, reject) => {
+      xhr.onerror = () => {
+        const msg = '网络错误，上传失败';
+        onError?.(msg);
+        reject(new Error(msg));
+      };
       xhr.onload = () => {
         const ok = xhr.status >= 200 && xhr.status < 300;
         if (!ok) {

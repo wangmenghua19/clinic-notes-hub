@@ -14,13 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// 注意：为避免弹窗与 Portal 卸载竞态，此处使用原生 <select> 替代组合式 Select
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
@@ -54,7 +48,6 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
   const [ffmpegReady, setFfmpegReady] = useState(false);
   const [ffmpeg, setFfmpeg] = useState<any>(null);
   const [ffFetchFile, setFfFetchFile] = useState<any>(null);
-  const [selectOpen, setSelectOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -198,6 +191,7 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
     setStartTs(Date.now());
     try {
       const compressServer = compressEnabled && fileType === 'video' && fileToUpload === file;
+      const compressServer = compressEnabled && fileType === 'video' && fileToUpload === file;
       const { xhr, promise } = fileService.createUploadWithProgress(
         fileToUpload,
         fileType!,
@@ -217,18 +211,60 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
         }
       );
       setCurrentXhr(xhr);
-      await promise;
-      toast({
-        title: '上传成功',
-        description: `${title} 已添加到资料库`,
-      });
-      setIsUploading(false);
-      setCurrentXhr(null);
-      onUploadComplete();
-      setSelectOpen(false);
-      setTimeout(() => {
-        handleClose();
-      }, 0);
+      try {
+        await promise;
+        toast({
+          title: '上传成功',
+          description: `${title} 已添加到资料库`,
+        });
+        setIsUploading(false);
+        setCurrentXhr(null);
+        onUploadComplete();
+        setSelectOpen(false);
+        setTimeout(() => {
+          handleClose();
+        }, 0);
+      } catch (err: any) {
+        if (compressServer) {
+          const { xhr: xhr2, promise: promise2 } = fileService.createUploadWithProgress(
+            fileToUpload,
+            fileType!,
+            diseaseTag,
+            title,
+            false,
+            (l, t) => {
+              setLoaded(l);
+              setTotal(t);
+            },
+            (msg) => {
+              toast({
+                title: '上传失败',
+                description: msg,
+                variant: 'destructive',
+              });
+            }
+          );
+          setCurrentXhr(xhr2);
+          try {
+            await promise2;
+            toast({
+              title: '上传成功',
+              description: '服务器压缩不可用，已直接上传原视频',
+            });
+            setIsUploading(false);
+            setCurrentXhr(null);
+            onUploadComplete();
+            setTimeout(() => {
+              handleClose();
+            }, 0);
+            return;
+          } catch (err2: any) {
+            throw err2;
+          }
+        } else {
+          throw err;
+        }
+      }
     } catch (error: any) {
       setIsUploading(false);
       setCurrentXhr(null);
@@ -384,19 +420,20 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
               </div>
 
               <div className="space-y-2">
-                <Label>选择目录</Label>
-                <Select value={diseaseTag} onValueChange={setDiseaseTag} open={selectOpen} onOpenChange={setSelectOpen}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择所属目录..." />
-                  </SelectTrigger>
-                  <SelectContent position="popper">
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.name}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="diseaseTag">选择目录</Label>
+                <select
+                  id="diseaseTag"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  value={diseaseTag}
+                  onChange={(e) => setDiseaseTag(e.target.value)}
+                >
+                  <option value="" disabled>选择所属目录...</option>
+                  {categories.map((category) => (
+                    <option key={category.id || category.name} value={category.name}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
