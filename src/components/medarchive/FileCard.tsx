@@ -1,4 +1,4 @@
- import { Image, FileAudio, FileText, Share2, Play, Pause, FileVideo, Maximize2 } from 'lucide-react';
+import { Image, FileText, Share2, Play, Pause, FileVideo } from 'lucide-react';
 import { useState } from 'react';
 import { MedFile } from '@/types/medarchive';
 import { Badge } from '@/components/ui/badge';
@@ -73,40 +73,45 @@ export function FileCard({ file, isSelected, onSelect, onShare }: FileCardProps)
               alt={file.name}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
-          ) : file.type === 'audio' ? (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-amber-50/50 p-4">
+          ) : (
+            <div className="w-full h-full relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-muted" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <div className="h-14 w-14 rounded-xl bg-primary/90 text-primary-foreground flex items-center justify-center shadow-sm">
+                  <FileText className="h-8 w-8" />
+                </div>
+                <span className="mt-2 text-sm font-medium text-foreground/80">学习资料</span>
+              </div>
+            </div>
+          )}
+          {file.type === 'audio' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
               <Button
                 size="icon"
                 variant="ghost"
-                className="h-12 w-12 rounded-full bg-white/80 shadow-sm hover:bg-white text-amber-600 mb-2"
+                className="h-12 w-12 rounded-full bg-white/90 shadow-sm hover:bg-white text-primary"
                 onClick={togglePlay}
               >
                 {isPlaying ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-1" />}
               </Button>
-              <span className="text-xs font-medium text-amber-700/70">
+              <span className="text-xs font-medium text-foreground/80">
                 {file.duration ? formatDuration(file.duration) : '音频录音'}
               </span>
             </div>
-          ) : file.type === 'video' ? (
-            <div className="w-full h-full flex items-center justify-center bg-slate-900/5 relative group/video">
-              <FileVideo className="h-12 w-12 text-slate-400 mb-2" />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover/video:bg-black/20 transition-colors">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-12 w-12 rounded-full bg-white/90 shadow-sm hover:bg-white text-primary hover:scale-105 transition-transform"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setVideoOpen(true);
-                  }}
-                >
-                  <Play className="h-6 w-6 ml-1 fill-current" />
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-slate-50/50">
-              <FileText className="h-12 w-12 text-slate-300" />
+          )}
+          {file.type === 'video' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-12 w-12 rounded-full bg-white/90 shadow-sm hover:bg-white text-primary hover:scale-105 transition-transform"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setVideoOpen(true);
+                }}
+              >
+                <Play className="h-6 w-6 ml-1" />
+              </Button>
             </div>
           )}
 

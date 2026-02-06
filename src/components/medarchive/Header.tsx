@@ -35,7 +35,7 @@ export function Header({
            </div>
           <div className="hidden sm:block">
              <h1 className="font-semibold text-lg leading-tight">MedArchive</h1>
-             <p className="text-xs text-muted-foreground">临床资料管理库</p>
+            <p className="text-xs text-muted-foreground">门店内部学习资料管理库</p>
            </div>
          </div>
  
@@ -47,7 +47,7 @@ export function Header({
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="搜索文件名或病种..."
+              placeholder="搜索文件名..."
               className="pl-10 h-10 bg-muted/50 border-0 focus-visible:ring-1"
             />
             {searchQuery && (

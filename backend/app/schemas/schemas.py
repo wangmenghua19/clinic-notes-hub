@@ -65,6 +65,9 @@ class CategoryResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class CategoryUpdate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+
 class ShareLinkCreate(BaseModel):
     resource_id: int
     expiry_hours: float = Field(default=24, ge=0.1)

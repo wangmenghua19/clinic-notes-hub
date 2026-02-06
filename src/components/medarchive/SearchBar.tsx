@@ -8,7 +8,7 @@
    placeholder?: string;
  }
  
- export function SearchBar({ value, onChange, placeholder = '搜索文件名或病种...' }: SearchBarProps) {
+export function SearchBar({ value, onChange, placeholder = '搜索文件名...' }: SearchBarProps) {
    return (
      <div className="relative w-full">
        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />

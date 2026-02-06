@@ -98,11 +98,15 @@ export const fileService = {
 
   // Delete a file
   async deleteFile(id: string): Promise<void> {
-    // Backend doesn't have delete endpoint yet!
-    // I should implement it or just mock it.
-    // User didn't explicitly ask for delete, but it's good practice.
-    // For now I'll just resolve.
-    return Promise.resolve();
+    const numericId = parseInt(id);
+    const response = await fetch(`${API_BASE_URL}/resources/${numericId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || '删除失败');
+    }
+    return;
   },
 };
 
@@ -204,5 +208,52 @@ export const categoryService = {
        throw new Error(err.detail || 'Failed to create category');
     }
     return response.json();
+  },
+
+  async updateCategory(id: string, name: string): Promise<any> {
+    const numericId = parseInt(id);
+    if (Number.isNaN(numericId)) {
+      throw new Error('目录ID无效');
+    }
+    const response = await fetch(`${API_BASE_URL}/categories/${numericId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      let message = '更新目录失败';
+      if (err && err.detail) {
+        if (typeof err.detail === 'string') {
+          message = err.detail;
+        } else if (Array.isArray(err.detail)) {
+          message = err.detail.map((e: any) => e.msg || e.detail || JSON.stringify(e)).join(', ');
+        } else if (typeof err.detail === 'object') {
+          message = err.detail.message || JSON.stringify(err.detail);
+        }
+      }
+      throw new Error(message);
+    }
+    return response.json();
+  },
+
+  async renameByName(oldName: string, newName: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/categories/ops/rename-by-name?old_name=${encodeURIComponent(oldName)}&new_name=${encodeURIComponent(newName)}`, {
+      method: 'PUT',
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      let message = '重命名目录失败';
+      if (err && err.detail) {
+        if (typeof err.detail === 'string') {
+          message = err.detail;
+        } else if (Array.isArray(err.detail)) {
+          message = err.detail.map((e: any) => e.msg || e.detail || JSON.stringify(e)).join(', ');
+        } else if (typeof err.detail === 'object') {
+          message = err.detail.message || JSON.stringify(err.detail);
+        }
+      }
+      throw new Error(message);
+    }
   }
 };

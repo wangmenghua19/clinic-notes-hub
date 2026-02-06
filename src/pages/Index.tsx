@@ -36,6 +36,12 @@ const Index = () => {
       }
       const data = await fileService.getFiles(searchQuery, tagFilter);
       setFiles(data);
+      if (selectedFile) {
+        const updated = data.find(f => f.id === selectedFile.id);
+        if (updated) {
+          setSelectedFile(updated);
+        }
+      }
     } catch (error) {
       console.error('Failed to load files:', error);
     } finally {
@@ -46,6 +52,14 @@ const Index = () => {
   useEffect(() => {
     loadFiles();
   }, [searchQuery, filterType, filterValue]);
+
+  useEffect(() => {
+    const handler = () => loadFiles();
+    window.addEventListener('medarchive:categories-updated', handler as EventListener);
+    return () => {
+      window.removeEventListener('medarchive:categories-updated', handler as EventListener);
+    };
+  }, []);
 
   const handleCategorySelect = (category: string | null, type: 'all' | 'group' | 'tag', value?: string) => {
     setSelectedCategory(category);
@@ -62,6 +76,18 @@ const Index = () => {
   const handleShare = (file: MedFile) => {
     setShareFile(file);
     setShareDialogOpen(true);
+  };
+
+  const handleDelete = async (file: MedFile) => {
+    try {
+      await fileService.deleteFile(file.id);
+      setFiles(prev => prev.filter(f => f.id !== file.id));
+      if (selectedFile?.id === file.id) {
+        setSelectedFile(null);
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
   };
 
   return (
@@ -122,6 +148,7 @@ const Index = () => {
             file={selectedFile}
             onClose={() => setSelectedFile(null)}
             onShare={handleShare}
+            onDelete={handleDelete}
           />
         </aside>
       </div>
@@ -138,6 +165,7 @@ const Index = () => {
               file={selectedFile}
               onClose={() => setSelectedFile(null)}
               onShare={handleShare}
+              onDelete={handleDelete}
             />
           </div>
         </div>

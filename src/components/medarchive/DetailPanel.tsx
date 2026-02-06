@@ -1,5 +1,5 @@
  import { useState } from 'react';
- import { X, Share2, Download, Trash2, Play, Pause, FileText, Save, Edit3 } from 'lucide-react';
+import { X, Share2, Download, Trash2, Play, Pause, FileText, Save, Edit3 } from 'lucide-react';
  import { MedFile } from '@/types/medarchive';
  import { Button } from '@/components/ui/button';
  import { Badge } from '@/components/ui/badge';
@@ -7,15 +7,27 @@
  import { Progress } from '@/components/ui/progress';
  import { ScrollArea } from '@/components/ui/scroll-area';
  import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
  import { cn } from '@/lib/utils';
  
  interface DetailPanelProps {
    file: MedFile | null;
    onClose: () => void;
    onShare: (file: MedFile) => void;
+  onDelete: (file: MedFile) => void;
  }
  
- export function DetailPanel({ file, onClose, onShare }: DetailPanelProps) {
+export function DetailPanel({ file, onClose, onShare, onDelete }: DetailPanelProps) {
    const [isPlaying, setIsPlaying] = useState(false);
    const [audioProgress, setAudioProgress] = useState(0);
    const [notes, setNotes] = useState(file?.notes || '');
@@ -97,6 +109,17 @@
                  className="w-full object-contain max-h-64"
                />
              )}
+            {file.type === 'image' && !file.thumbnailUrl && (
+              <div className="h-40 w-full relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-muted" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="h-14 w-14 rounded-xl bg-primary/90 text-primary-foreground flex items-center justify-center shadow-sm">
+                    <FileText className="h-8 w-8" />
+                  </div>
+                  <span className="mt-2 text-sm font-medium text-foreground/80">学习资料</span>
+                </div>
+              </div>
+            )}
              
              {file.type === 'audio' && (
               <div className="p-6">
@@ -138,12 +161,15 @@
             )}
             
             {file.type === 'document' && (
-               <div className="p-8 flex items-center justify-center">
-                 <div className="text-center">
-                   <FileText className="h-16 w-16 mx-auto text-destructive/60" />
-                   <span className="text-sm text-muted-foreground mt-2 block">PDF 文档</span>
-                 </div>
-               </div>
+              <div className="h-40 w-full relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-muted" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="h-14 w-14 rounded-xl bg-primary/90 text-primary-foreground flex items-center justify-center shadow-sm">
+                    <FileText className="h-8 w-8" />
+                  </div>
+                  <span className="mt-2 text-sm font-medium text-foreground/80">学习资料</span>
+                </div>
+              </div>
              )}
            </div>
  
@@ -151,10 +177,10 @@
            <div>
              <h4 className="font-medium mb-3 line-clamp-2">{file.name}</h4>
              <div className="space-y-2 text-sm">
-               <div className="flex justify-between">
-                 <span className="text-muted-foreground">病种标签</span>
-                 <Badge variant="secondary">{file.diseaseTag}</Badge>
-               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">目录所在</span>
+                <Badge variant="secondary">{file.diseaseTag}</Badge>
+              </div>
                <div className="flex justify-between">
                  <span className="text-muted-foreground">文件大小</span>
                  <span>{formatSize(file.size)}</span>
@@ -233,13 +259,34 @@
              下载
            </Button>
          </div>
-         <Button
-           variant="ghost"
-           className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
-         >
-           <Trash2 className="h-4 w-4 mr-2" />
-           删除资料
-         </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              className="w-full h-11 text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              删除资料
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>确认删除</AlertDialogTitle>
+              <AlertDialogDescription>
+                删除操作不可逆，删除后文件将永久消失。确定要删除该资料吗？
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => file && onDelete(file)}
+              >
+                确定删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
        </div>
      </div>
    );
