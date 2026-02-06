@@ -107,6 +107,10 @@ export function DetailPanel({ file, onClose, onShare, onDelete }: DetailPanelPro
                  src={file.thumbnailUrl}
                  alt={file.name}
                  className="w-full object-contain max-h-64"
+                onError={(e) => {
+                  const el = e.currentTarget as HTMLImageElement;
+                  el.style.display = 'none';
+                }}
                />
              )}
             {file.type === 'image' && !file.thumbnailUrl && (
@@ -154,6 +158,10 @@ export function DetailPanel({ file, onClose, onShare, onDelete }: DetailPanelPro
                    controls 
                    className="w-full h-full"
                    controlsList="nodownload"
+                   onError={(e) => {
+                     const el = e.currentTarget as HTMLVideoElement;
+                     el.style.display = 'none';
+                   }}
                  >
                    您的浏览器不支持视频播放。
                  </video>

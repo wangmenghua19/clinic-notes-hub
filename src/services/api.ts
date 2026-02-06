@@ -96,6 +96,145 @@ export const fileService = {
     };
   },
 
+  async uploadFileWithProgress(
+    file: File,
+    type: FileType,
+    diseaseTag: DiseaseTag,
+    title: string | undefined,
+    compressServer: boolean,
+    onProgress: (loaded: number, total: number) => void,
+    onError?: (message: string) => void
+  ): Promise<MedFile> {
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', title || file.name);
+      formData.append('category', diseaseTag);
+      formData.append('compress', compressServer ? 'true' : 'false');
+      const mediaTypeMap: Record<string, string> = {
+        image: 'IMAGE',
+        audio: 'AUDIO',
+        video: 'VIDEO',
+        document: 'DOC'
+      };
+      formData.append('media_type', mediaTypeMap[type] || 'DOC');
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${API_BASE_URL}/resources`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded, e.total);
+      };
+      xhr.onerror = () => {
+        const msg = '网络错误，上传失败';
+        onError?.(msg);
+        reject(new Error(msg));
+      };
+      xhr.onload = () => {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        if (!ok) {
+          let message = '上传失败';
+          try {
+            const err = JSON.parse(xhr.responseText);
+            if (err?.detail) {
+              if (typeof err.detail === 'string') message = err.detail;
+              else if (Array.isArray(err.detail)) message = err.detail.map((e: any) => e.msg || e.detail).join(', ');
+              else if (typeof err.detail === 'object') message = err.detail.message || JSON.stringify(err.detail);
+            }
+          } catch {}
+          onError?.(message);
+          reject(new Error(message));
+          return;
+        }
+        try {
+          const r = JSON.parse(xhr.responseText);
+          const result: MedFile = {
+            id: String(r.id),
+            name: r.title,
+            type: (r.media_type === 'DOC' ? 'document' : String(r.media_type).toLowerCase()) as FileType,
+            diseaseTag: r.category as DiseaseTag,
+            size: r.size,
+            createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+            fileUrl: `${API_BASE_URL}/resources/${r.id}/content`,
+            thumbnailUrl: String(r.media_type).toUpperCase() === 'IMAGE' ? `${API_BASE_URL}/resources/${r.id}/content` : undefined,
+            duration: r.duration
+          };
+          resolve(result);
+        } catch {
+          reject(new Error('响应解析失败'));
+        }
+      };
+      xhr.send(formData);
+    });
+  },
+  createUploadWithProgress(
+    file: File,
+    type: FileType,
+    diseaseTag: DiseaseTag,
+    title: string | undefined,
+    compressServer: boolean,
+    onProgress: (loaded: number, total: number) => void,
+    onError?: (message: string) => void
+  ): { xhr: XMLHttpRequest; promise: Promise<MedFile> } {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('title', title || file.name);
+    formData.append('category', diseaseTag);
+    formData.append('compress', compressServer ? 'true' : 'false');
+    const mediaTypeMap: Record<string, string> = {
+      image: 'IMAGE',
+      audio: 'AUDIO',
+      video: 'VIDEO',
+      document: 'DOC'
+    };
+    formData.append('media_type', mediaTypeMap[type] || 'DOC');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE_URL}/resources`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded, e.total);
+    };
+    xhr.onerror = () => {
+      const msg = '网络错误，上传失败';
+      onError?.(msg);
+    };
+    const promise = new Promise<MedFile>((resolve, reject) => {
+      xhr.onload = () => {
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        if (!ok) {
+          let message = '上传失败';
+          try {
+            const err = JSON.parse(xhr.responseText);
+            if (err?.detail) {
+              if (typeof err.detail === 'string') message = err.detail;
+              else if (Array.isArray(err.detail)) message = err.detail.map((e: any) => e.msg || e.detail).join(', ');
+              else if (typeof err.detail === 'object') message = err.detail.message || JSON.stringify(err.detail);
+            }
+          } catch {}
+          onError?.(message);
+          reject(new Error(message));
+          return;
+        }
+        try {
+          const r = JSON.parse(xhr.responseText);
+          const result: MedFile = {
+            id: String(r.id),
+            name: r.title,
+            type: (r.media_type === 'DOC' ? 'document' : String(r.media_type).toLowerCase()) as FileType,
+            diseaseTag: r.category as DiseaseTag,
+            size: r.size,
+            createdAt: r.created_at ? new Date(r.created_at) : new Date(),
+            fileUrl: `${API_BASE_URL}/resources/${r.id}/content`,
+            thumbnailUrl: String(r.media_type).toUpperCase() === 'IMAGE' ? `${API_BASE_URL}/resources/${r.id}/content` : undefined,
+            duration: r.duration
+          };
+          resolve(result);
+        } catch {
+          reject(new Error('响应解析失败'));
+        }
+      };
+    });
+    xhr.send(formData);
+    return { xhr, promise };
+  },
+
   // Delete a file
   async deleteFile(id: string): Promise<void> {
     const numericId = parseInt(id);

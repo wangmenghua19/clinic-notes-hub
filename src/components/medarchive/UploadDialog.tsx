@@ -10,7 +10,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -42,6 +44,16 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
   const [diseaseTag, setDiseaseTag] = useState<string>('');
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [loaded, setLoaded] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [startTs, setStartTs] = useState<number | null>(null);
+  const [currentXhr, setCurrentXhr] = useState<XMLHttpRequest | null>(null);
+  const [compressEnabled, setCompressEnabled] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState(0);
+  const [ffmpegReady, setFfmpegReady] = useState(false);
+  const [ffmpeg, setFfmpeg] = useState<any>(null);
+  const [ffFetchFile, setFfFetchFile] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -62,11 +74,11 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const selectedFile = acceptedFiles[0];
     if (selectedFile) {
-      // Check file size (500MB limit)
-      if (selectedFile.size > 500 * 1024 * 1024) {
+      const limit = compressEnabled ? 2 * 1024 * 1024 * 1024 : 500 * 1024 * 1024;
+      if (selectedFile.size > limit) {
         toast({
           title: '文件过大',
-          description: '单个文件最大支持 500MB',
+          description: compressEnabled ? '压缩上传模式下最大支持 2GB' : '单个文件最大支持 500MB，可开启压缩上传',
           variant: 'destructive',
         });
         return;
@@ -101,24 +113,139 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
   const handleUpload = async () => {
     if (!file || !fileType || !diseaseTag || !title) return;
 
+    let fileToUpload: File = file;
+    if (compressEnabled && fileType === 'video') {
+      try {
+        if (!ffmpegReady) {
+          setIsCompressing(true);
+          setCompressProgress(5);
+          let createFFmpegFn: any = null;
+          let fetchFileFn: any = null;
+          try {
+            const mod: any = await import(/* @vite-ignore */ '@ffmpeg/ffmpeg');
+            createFFmpegFn = mod.createFFmpeg || mod.default?.createFFmpeg;
+            fetchFileFn = mod.fetchFile || mod.default?.fetchFile;
+          } catch {}
+          if (!createFFmpegFn || !fetchFileFn) {
+            try {
+              await new Promise<void>((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/ffmpeg.min.js';
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('加载 UMD 版 ffmpeg 失败'));
+                document.head.appendChild(s);
+              });
+              const globalFF = (window as any).FFmpeg;
+              createFFmpegFn = globalFF?.createFFmpeg;
+              fetchFileFn = globalFF?.fetchFile;
+            } catch {}
+          }
+          if (!createFFmpegFn || !fetchFileFn) {
+            throw new Error('ffmpeg 模块加载失败');
+          }
+          const instance = createFFmpegFn({
+            log: false,
+            corePath: 'https://unpkg.com/@ffmpeg/core@0.12.7/dist/ffmpeg-core.js'
+          });
+          setFfmpeg(instance);
+          setFfFetchFile(() => fetchFileFn);
+          await instance.load();
+          setFfmpegReady(true);
+        }
+        setIsCompressing(true);
+        setCompressProgress(10);
+        ffmpeg.setLogger(({ message }: any) => {
+          if (message.includes('frame=')) {
+            const m = /time=(\\S+)/.exec(message);
+            if (m) setCompressProgress((p) => Math.min(p + 1, 90));
+          }
+        });
+        ffmpeg.setProgress(({ ratio }: any) => {
+          setCompressProgress(Math.min(90, Math.floor(ratio * 90)));
+        });
+        const inName = 'input.mp4';
+        const outName = 'output.mp4';
+        ffmpeg.FS('writeFile', inName, await ffFetchFile(file));
+        await ffmpeg.run(
+          '-i', inName,
+          '-vf', 'scale=-2:720',
+          '-c:v', 'libx264',
+          '-preset', 'veryfast',
+          '-b:v', '2000k',
+          '-c:a', 'aac',
+          '-b:a', '128k',
+          outName
+        );
+        const data = ffmpeg.FS('readFile', outName);
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        fileToUpload = new File([blob], file.name.replace(/\.[^\\.]+$/, '') + '.mp4', { type: 'video/mp4' });
+        setCompressProgress(100);
+        setIsCompressing(false);
+      } catch (e: any) {
+        setIsCompressing(false);
+        toast({
+          title: '压缩失败，改用服务器压缩',
+          description: e?.message || '将上传原视频并由服务器转码',
+        });
+        // 不返回，继续走服务器压缩（compress=true）
+      }
+    }
+
     setIsUploading(true);
+    setLoaded(0);
+    setTotal(fileToUpload.size);
+    setStartTs(Date.now());
     try {
-      await fileService.uploadFile(file, fileType, diseaseTag, title);
+      const compressServer = compressEnabled && fileType === 'video' && fileToUpload === file;
+      const { xhr, promise } = fileService.createUploadWithProgress(
+        fileToUpload,
+        fileType!,
+        diseaseTag,
+        title,
+        compressServer,
+        (l, t) => {
+          setLoaded(l);
+          setTotal(t);
+        },
+        (msg) => {
+          toast({
+            title: '上传失败',
+            description: msg,
+            variant: 'destructive',
+          });
+        }
+      );
+      setCurrentXhr(xhr);
+      await promise;
       toast({
         title: '上传成功',
         description: `${title} 已添加到资料库`,
       });
       setIsUploading(false);
+      setCurrentXhr(null);
       onUploadComplete();
       handleClose();
     } catch (error: any) {
       setIsUploading(false);
+      setCurrentXhr(null);
       toast({
         title: '上传失败',
         description: error.message || '请稍后重试',
         variant: 'destructive',
       });
     }
+  };
+
+  const handleCancelUpload = () => {
+    try {
+      currentXhr?.abort();
+    } catch {}
+    setIsUploading(false);
+    setCurrentXhr(null);
+    toast({
+      title: '已取消上传',
+      description: file ? `${file.name} 上传已取消` : undefined,
+    });
   };
 
   const handleClose = () => {
@@ -175,6 +302,49 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
                 </Button>
               </div>
 
+              {fileType === 'video' && (
+                <div className="flex items-center justify-between p-3 rounded-lg border">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={compressEnabled} onCheckedChange={setCompressEnabled} />
+                    <span className="text-sm">压缩上传（720p，约 2Mbps）</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {compressEnabled ? '推荐：减少上传体积' : '关闭：保持原始质量'}
+                  </span>
+                </div>
+              )}
+
+              {isCompressing && (
+                <div className="space-y-2 p-3 rounded-lg border bg-muted/40">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>压缩中</span>
+                    <span>{Math.min(100, compressProgress)}%</span>
+                  </div>
+                  <Progress value={compressProgress} />
+                </div>
+              )}
+
+              {isUploading && (
+                <div className="space-y-2 p-3 rounded-lg border bg-muted/40">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>
+                      {total ? Math.floor((loaded / total) * 100) : 0}%
+                    </span>
+                    <span>
+                      {(() => {
+                        if (!startTs || !total) return '';
+                        const elapsed = (Date.now() - startTs) / 1000;
+                        const speed = loaded / 1024 / 1024 / Math.max(elapsed, 0.001);
+                        const remain = total - loaded;
+                        const eta = speed > 0 ? remain / 1024 / 1024 / speed : 0;
+                        return `速度 ${speed.toFixed(2)} MB/s · 剩余 ${Math.ceil(eta)}s`;
+                      })()}
+                    </span>
+                  </div>
+                  <Progress value={total ? (loaded / total) * 100 : 0} />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="title">资料标题</Label>
                 <Input
@@ -226,7 +396,12 @@ export function UploadDialog({ open, onOpenChange, onUploadComplete }: UploadDia
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handleClose}>取消</Button>
+          <Button variant="outline" onClick={handleClose} disabled={isUploading}>取消</Button>
+          {isUploading && (
+            <Button variant="destructive" onClick={handleCancelUpload}>
+              取消上传
+            </Button>
+          )}
           <Button onClick={handleUpload} disabled={!file || !fileType || !diseaseTag || !title || isUploading}>
             {isUploading ? '上传中...' : '开始上传'}
           </Button>

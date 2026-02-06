@@ -34,6 +34,7 @@ async def create_resource(
     transcript: Optional[str] = Form(""),
     duration: Optional[int] = Form(None),
     file: UploadFile = File(...),
+    compress: Optional[bool] = Form(False),
     db: Session = Depends(get_db)
 ):
     print(f"Received upload request: title={title}, category={category}, media_type={media_type}")
@@ -57,6 +58,33 @@ async def create_resource(
     # Store pseudo-path or empty for compatibility
     file_path = f"db://{secrets.token_hex(8)}_{file.filename}"
 
+    # Optional server-side compression for video
+    if compress and media_type == MediaType.VIDEO:
+        try:
+            import shutil, tempfile, subprocess
+            if shutil.which("ffmpeg") is None:
+                print("FFmpeg not found, skipping server-side compression")
+            else:
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    in_path = os.path.join(tmpdir, "input.mp4")
+                    out_path = os.path.join(tmpdir, "output.mp4")
+                    with open(in_path, "wb") as f_in:
+                        f_in.write(file_content)
+                    # Transcode: 720p, H.264 + AAC, ~2Mbps
+                    cmd = [
+                        "ffmpeg", "-y", "-i", in_path,
+                        "-vf", "scale=-2:720",
+                        "-c:v", "libx264", "-preset", "veryfast", "-b:v", "2000k",
+                        "-c:a", "aac", "-b:a", "128k",
+                        out_path
+                    ]
+                    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    with open(out_path, "rb") as f_out:
+                        file_content = f_out.read()
+                        file_size = len(file_content)
+        except Exception as e:
+            print(f"Compression failed: {e}")
+    
     resource = LearningResource(
         title=title,
         category=category,
@@ -69,7 +97,6 @@ async def create_resource(
         transcript=transcript or "",
         content=file_content # Save to DB
     )
-    
     db.add(resource)
     db.commit()
     db.refresh(resource)
